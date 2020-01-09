@@ -1,0 +1,236 @@
+---
+title: "Exploratory Data Analysis and Multiple Linear Regression on Boston Housing Dataset"
+author: Kritik Seth
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This dataset contains information about 506 census tracts of Boston from the 1970 census. As an aspiring data scientist, understanding how to model data like this is of great importance to me. In this kernel, I will use the Boston housing data by Harrison and Rubinfeld (1979) and explore which factors affect the median value of homes. I will perform a linear regression analysis on the same.
+
+### Boston Housing Data
+
+You can include this data by using the 'MASS' library. The data has following features, medv being the target (dependent) variable:
+
+* crim - per capita crime rate by town
+* zn - proportion of residential land zoned for lots over 25,000 sq.ft
+* indus - proportion of non-retail business acres per town
+* chas - Charles River dummy variable (= 1 if tract bounds river; 0 otherwise)
+* nox - nitric oxides concentration (parts per 10 million)
+* rm - average number of rooms per dwelling
+* age - proportion of owner-occupied units built prior to 1940
+* dis - weighted distances to five Boston employment centres
+* rad - index of accessibility to radial highways
+* tax - full-value property-tax rate per USD 10,000
+* ptratio - pupil-teacher ratio by town
+* black - proportion of blacks by town
+* lstat - percentage of lower status of the population
+* medv - median value of owner-occupied homes in USD 1000’s
+
+## We will structure the code as follows
+1. Loading the data
+2. Preparing the data
+3. Exploratory Data Analysis
+4. Building the model and accuracy analysis
+5. Final Analysis of the model
+
+### 1. Load the Boston Housing data and assign it to any variable
+
+```{r}
+library(MASS)
+housing <- Boston
+```
+
+#### Other libraries we may need:
+
+```{r loadlib, echo=T, results='hide', message=F, warning=F}
+library(corrplot) #for visualisation of correlation
+library(lattice) #for visualisation
+library(ggplot2) #for visualisation
+library(caTools) #for splittind data into testing and training data
+library(dplyr) #manipulating dataframe
+library(plotly) #converting ggplot to plotly
+```
+
+### 2. Preparing the data
+Checking for NA and missing values and removing them
+
+```{r}
+numberOfNA <- length(which(is.na(housing)==T))
+if(numberOfNA>0) {
+  housing <- housing[complete.cases(housing),]
+}
+```
+
+Prepare the training and testing data
+
+```{r}
+set.seed(123)
+split <- sample.split(housing,SplitRatio = 0.75) #assigns booleans to a new coloumn based on the split ratio
+train <- subset(housing,split==TRUE)
+test <- subset(housing,split==FALSE)
+```
+
+### 3. Exploratory Data Analysis
+This is a crucial part and usually takes up most of the time. A proper and extensive EDA would reveal interesting patterns and help to prepare the data in a better way!
+
+Now let's perform some exploratory data analysis to understand how the variables of the data are related to one another.
+
+Now lets see the structure of different variables in the Boston Housing dataset:
+
+```{r}
+str(housing)
+```
+
+Here we can see that the variables 'chas' and 'rad' are non numeric
+
+A command called head gives you the top 6 rows of the dataset
+
+```{r}
+head(housing)
+```
+
+A command called summary gives you the basic statistics of your dataset like mean, median, 1st quartile, 2nd quartile etc.
+
+```{r}
+summary(housing)
+```
+
+Here we can see that variable 'crim' and 'black' take wide range of values.
+
+Variables 'crim', 'zn', 'rm' and 'black' have a large difference between their median and mean which indicates lot of outliers in respective variables.
+
+```{r}
+par(mfrow = c(1, 4))
+boxplot(housing$crim, main='crim',col='Sky Blue')
+boxplot(housing$zn, main='zn',col='Sky Blue')
+boxplot(housing$rm, main='rm',col='Sky Blue')
+boxplot(housing$black, main='black',col='Sky Blue')
+```
+
+As suggested earlier variables 'crim', 'zn', 'rm' and 'black' do have a lot of outliers.
+
+### Finding correlation
+Correlation is a statistical measure that suggests the level of linear dependence between two variables that occur in pair.
+Its value lies between -1 to +1
+
+* If above 0 it means positive correlation i.e. X is directly proportional to Y.
+* If below 0 it means negative correlation i.e. X is inversly proportional to Y.
+* Value 0 suggests weak relation.
+
+Usually we would use the function 'cor' to find correlation between two variables, but since we have 14 variables here, it is easier to examine the correlation between different varables using corrplot function in library 'corrplot'.
+
+Correlation plots are a great way of exploring data and seeing the level of interaction between the variables.
+
+```{r}
+corrplot(cor(housing))
+```
+
+Since this is a linear regression experiment which involves looking at how median value of homes in Boston vary with the different factors, it makes sense to see the trends of all the variables.
+
+Before moving on to analyzing linearity between 'medv' and different variables, there are few things we must know:
+
+#### Types of Linear Models in R
+![Imgur](https://i.imgur.com/ekopDzK.png)
+*source- Montefiore Institute*
+
+We will now try to find out the linearity between 'medv' and other variables keeping one thing in mind-
+"It is not worth complicating the model for a very small increase in Adjusted R-squared value"
+
+```{r}
+dropList <- c('chas','rad','crim','zn','black')
+#We drop chas and rad because they are non numeric
+#We drop crim, zn and black because they have lot of outliers
+housingplot <- housing[,!colnames(housing) %in% dropList]
+splom(housingplot,col = 'Sky Blue')
+```
+
+The first row of plot is the most useful. It indicates how different variables impact the median value of homes in Boston.
+
+Analyzing scatter plot and Adjusted R-squared values between medv and other variables for linearity we find that only 'lstat' has significantly high difference of Adjusted R-square between its squared model and linear model for it to be mathematically squared inside the model using the identity function (I).
+
+### 4. Building the model and accuracy analysis
+
+#### How to analyze a model
+In Linear Regression
+
+* The Null Hypothesis is that the coefficients associated with the variables are zero. 
+* The alternate hypothesis is that the coefficients are not equal to zero (i.e. there exists a relationship between the independent variable in question and the dependent variable).
+* If Pr(>|t|) value has 3 stars, it means that coeffecient is of very high statistical significance. Pr(>|t|) value less than 0.05 is considered as good.
+* Multiple R-squared measures the proportion of the variation in your dependent variable explained by all of your independent variables in the model.
+* Adjusted R-squared measures the proportion of variation explained by only those independent variables that really help in explaining the dependent variable. It penalizes you for adding independent variable that do not help in predicting the dependent variable.
+* If F-statistic is significant then Model is good (higher the value of F-statistic the better).
+* Our key objective is to determine the variable(s) that would give best predictive model.
+
+Let's begin by fitting all the variables.
+
+```{r}
+# Fitting Simple Linear regression
+# . is used to fit predictor using all independent variables
+lm.fit1 <- lm(medv~.,data=train)
+summary(lm.fit1)
+```
+
+#### Iteration 1
+* R-squared value is around 0.76
+* F-statistic value is 90.8
+
+#### Improvements
+* Variables 'age' and 'indus' have very high Pr(>|t|) value and low significance hence removing them could give us a better model.
+* As we noticed in EDA 'lstat' is non-linear and hence can be squared for a better fit.
+
+```{r}
+lm.fit2 <- lm(medv~.-age-indus+I(lstat^2),data=train)
+summary(lm.fit2)
+```
+
+#### Iteration 2
+* R-squared value increased to around 0.81
+* F-statistic value inreased to 128.5
+
+#### Improvements
+* Variable 'zn' has very high Pr(>|t|) value and low significance hence removing it could give us a better model.
+* Interaction between highly significant variables could give us a better model.
+
+```{r}
+lm.fit3 <- lm(medv~.-indus-age-zn+rm*lstat-black+rm*rad+lstat*rad,data=train)
+summary(lm.fit3)
+```
+
+#### Iteration 3
+* R-squared value increased to around 0.86
+* F-statistic value inreased to 185.1
+
+### 5. Final Analysis of the model
+
+```{r, message=F, warning=F}
+residuals <- data.frame('Residuals' = lm.fit3$residuals)
+res_hist <- ggplot(residuals, aes(x=Residuals)) + geom_histogram(color='black', fill='skyblue') + ggtitle('Histogram of Residuals')
+res_hist
+```
+
+Looking at the above histogram we can say that graph is slightly right skewed and therefore can almost be considered as normally distributed.
+
+```{r, message=F, warning=F}
+plot(lm.fit3, col='Sky Blue')
+```
+
+```{r, message=F, warning=F}
+test$predicted.medv <- predict(lm.fit3,test)
+pl1 <-test %>% 
+  ggplot(aes(medv,predicted.medv)) +
+  geom_point(alpha=0.5) + 
+  stat_smooth(aes(colour='black')) +
+  xlab('Actual value of medv') +
+  ylab('Predicted value of medv') +
+  theme_bw()
+
+ggplotly(pl1)
+```
+
+I hope you enjoyed this analysis! I think going forward it would be interesting to use a method other than linear regression.
+
+Comments, questions, and upvotes are welcome!
+
+### Thank You!
