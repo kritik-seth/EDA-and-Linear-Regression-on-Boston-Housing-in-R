@@ -47,13 +47,14 @@ lm.fit2 <- lm(medv~.-age-indus+I(lstat^2),data=train)
 summary(lm.fit2)
 
 lm.fit3 <- lm(medv~.-indus-age-zn+rm*lstat-black+rm*rad+lstat*rad,data=train)
-
+summary(lm.fit3)
 
 residuals <- data.frame('Residuals' = lm.fit3$residuals)
 res_hist <- ggplot(residuals, aes(x=Residuals)) + geom_histogram(color='black', fill='skyblue') + ggtitle('Histogram of Residuals')
 res_hist
 
 plot(lm.fit3, col='Sky Blue')
+
 
 test$predicted.medv <- predict(lm.fit3,test)
 pl1 <-test %>% 
